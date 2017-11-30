@@ -63,13 +63,16 @@ void *producer(void *args)
 	}
 
 	while (!feof(f) && fscanf(f, "%d %d %s %s %lf", &prodid, &st.sid, st.firstname, st.lastname, &st.cgpa)) {
+		printf("producer %d %d %s %s %lf\n", prodid, st.sid, st.firstname, st.lastname, st.cgpa);
 		if (prodid == id) {
 			// pthread_mutex_lock(&avail.mutex);
 			pthread_mutex_lock(&bufs[id].mutex);
 
 			// wait until buffer not full
-			while (FULL(bufs[id]))
+			while (FULL(bufs[id])) {
+				printf("buffer full\n");
 				pthread_cond_wait(&bufs[id].full, &bufs[id].mutex);
+			}
 
 			// add st to buffer
 			bufs[id].buf[bufs[id].end] = st; // struct assignment copies each member of struct
@@ -86,7 +89,12 @@ void *producer(void *args)
 		fscanf(f, " \n"); // skip line
 	}
 
+	pthread_mutex_lock(&bufs[id].mutex);
+	bufs[id].finished = 1;
 	finished++;
+	pthread_mutex_unlock(&bufs[id].mutex);
+
+	printf("producer finished\n");
 
 	fclose(f);
 	pthread_exit(NULL);
@@ -94,14 +102,14 @@ void *producer(void *args)
 
 void *consumer(void *args)
 {
-	// store rbtree or something to order entries
 	struct heap students;
 	struct student *st;
+	int consumed = 0; // number of producers finished and completely consumed
 
 	heap_init(&students, MAXSTUDENTS);
 
 	// read from each buffer
-	while (finished != N) {
+	while (consumed != N) {
 		// pthread_mutex_lock(&avail.mutex);
 
 		// wait for nonempty buffer
@@ -114,9 +122,15 @@ void *consumer(void *args)
 		// consume from bufs[id]
 		pthread_mutex_lock(&bufs[id].mutex);
 
-		// wait until buffer nonempty, just in case
-		while (EMPTY(bufs[id]))
+		// wait until buffer nonempty
+		while (!bufs[id].finished && EMPTY(bufs[id])) {
+			printf("buffer empty\n");
 			pthread_cond_wait(&bufs[id].empty, &bufs[id].mutex);
+		}
+		if (bufs[id].finished && EMPTY(bufs[id])) {
+			consumed++;
+			continue;
+		}
 
 		// remove element from buffer
 		st = malloc(sizeof(struct student));
@@ -125,6 +139,8 @@ void *consumer(void *args)
 		bufs[id].start++;
 		bufs[id].start %= bufsiz;
 
+		printf("consumer %d %d %s %s %lf\n", id, st->sid, st->firstname, st->lastname, st->cgpa);
+
 		heap_push(&students, st->sid, st);
 
 		pthread_cond_signal(&bufs[id].full);
@@ -132,6 +148,8 @@ void *consumer(void *args)
 
 		// pthread_mutex_unlock(&avail.mutex);
 	}
+
+	printf("producers finished\n");
 
 	// output students
 	FILE *f = fopen(output, "w");
@@ -160,6 +178,7 @@ void buffer_init(struct buffer *b)
 	pthread_cond_init(&b->empty, NULL);
 	pthread_cond_init(&b->full, NULL);
 	b->start = b->end = b->size = 0;
+	b->finished = 0;
 }
 
 void buffer_free(struct buffer *b)
