@@ -11,13 +11,16 @@ struct student {
 // buffer shared between producer and consumer
 struct buffer {
 	struct student *buf;
-	pthread_cond_t full, empty;
-	pthread_mutex_t lock;
+	pthread_cond_t full, empty; // represents whether buffer NOT full or empty
+	pthread_mutex_t mutex;
 	int start, end, size;
 };
 
 #define EMPTY(buf) ((buf).size == 0)
 #define FULL(buf)  ((buf).size == bufsiz)
+
+// initial size of heap
+#define MAXSTUDENTS 32
 
 // shared parameters
 int N, bufsiz;

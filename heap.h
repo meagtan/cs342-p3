@@ -3,13 +3,16 @@
 
 #include <pthread.h>
 
+#ifndef __HEAP_H
+#define __HEAP_H
+
 struct heap {
 	int *keys;
 	void **vals;
 	int size, maxsize; // maxsize doubled every time size reaches maxsize
 
 	pthread_mutex_t mutex;
-	pthread_cond_t empty;
+	pthread_cond_t empty; // signals whenever heap NOT empty
 };
 
 void heap_init(struct heap *, int maxsize);
@@ -24,3 +27,7 @@ void heap_decrkey(struct heap *, int key, void *val);
 void *heap_min(struct heap *);
 
 void *heap_pop(struct heap *);
+
+void heap_free(struct heap *);
+
+#endif

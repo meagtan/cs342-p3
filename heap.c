@@ -5,15 +5,6 @@
 #define PARENT(i) (((i)-1)>>1)
 #define LEFTCHILD(i) (2*(i)+1)
 
-struct heap {
-        int *keys;
-        void **vals;
-        int size, maxsize; // maxsize doubled every time size reaches maxsize
-
-        pthread_mutex_t mutex;
-        pthread_cond_t empty;
-};
-
 void heap_init(struct heap *h, int maxsize)
 {
 	h->keys = malloc(maxsize * sizeof(int));
@@ -22,8 +13,8 @@ void heap_init(struct heap *h, int maxsize)
 	h->size = 0;
 	h->maxsize = maxsize;
 
-	h->mutex = PTHREAD_MUTEX_INITIALIZER;
-	h->cond  = PTHREAD_COND_INITIALIZER;
+	pthread_mutex_init(&h->mutex, NULL);
+	pthread_cond_init(&h->empty, NULL);
 }
 
 int heap_empty(struct heap *h)
@@ -71,7 +62,7 @@ void heap_decrkey(struct heap *h, int key, void *val)
 		}
 		h->keys[i] = key; // unnecessary
 		h->vals[i] = val;
-		pthread_cond_signal(&h->empty, &h->mutex);
+		pthread_cond_signal(&h->empty);
 	}
 
 	// sift up
@@ -119,4 +110,13 @@ void *heap_pop(struct heap *h)
 
 	pthread_mutex_unlock(&h->mutex);
 	return val;
+}
+
+void heap_free(struct heap *h)
+{
+	free(h->keys);
+	free(h->vals);
+
+	pthread_mutex_destroy(&h->mutex);
+	pthread_cond_destroy(&h->empty);
 }

@@ -19,16 +19,16 @@ int main(int argc, char *argv[])
 	input  = argv[3];
 	output = argv[4];
 
-	int i;
+	long int i;
 	pthread_t *thr = malloc((N+1) * sizeof(pthread_t)); // all threads, including consumer
 
 	// initialize shared mutexes, condition variables
-	heap_init(avail, N);
+	// heap_init(avail, N);
 
 	// create N buffers, create producers
 	bufs = malloc(N * sizeof(struct buffer));
 	for (i = 0; i < N; ++i) {
-		buffer_init(bufs[i]);
+		buffer_init(bufs+i);
 		pthread_create(thr+i, NULL, producer, (void *) i);
 	}
 
@@ -37,18 +37,21 @@ int main(int argc, char *argv[])
 
 	// wait for all threads to finish // TODO is this correct?
 	for (i = 0; i <= N; ++i)
-		pthread_join(thr+i);
+		pthread_join(thr[i], NULL);
 
 	// close buffers
 	for (i = 0; i < N; ++i)
-		buffer_free(bufs[i]);
+		buffer_free(bufs+i);
 	free(bufs);
 	// release mutexes etc. if necessary
+
+	free(thr);
+	// heap_free(avail, N);
 }
 
 void *producer(void *args)
 {
-	int id = (int) args;
+	long int id = (long int) args;
 	struct student st;
 	int prodid; // producer id of each entry read
 
@@ -59,9 +62,9 @@ void *producer(void *args)
 		exit(1);
 	}
 
-	while (fscanf(input, " %d %d %s %s %f", prodid, st.sid, st.firstname, st.lastname, st.cpga)) {
+	while (!feof(f) && fscanf(f, "%d %d %s %s %lf", &prodid, &st.sid, st.firstname, st.lastname, &st.cgpa)) {
 		if (prodid == id) {
-			pthread_mutex_lock(&avail.mutex);
+			// pthread_mutex_lock(&avail.mutex);
 			pthread_mutex_lock(&bufs[id].mutex);
 
 			// wait until buffer not full
@@ -72,14 +75,15 @@ void *producer(void *args)
 			bufs[id].buf[bufs[id].end] = st; // struct assignment copies each member of struct
 			bufs[id].size++;
 			bufs[id].end++;
-			bufs[id] %= bufsiz;
+			bufs[id].end %= bufsiz;
 
 			// signal that buffer not empty
-			heap_decrkey(&avail, -bufs[id].size, (void *) id);
-			pthread_cond_signal(&bufs[id].empty, &bufs[id].mutex);
+			// heap_decrkey(&avail, -bufs[id].size, (void *) id);
+			pthread_cond_signal(&bufs[id].empty);
 			pthread_mutex_unlock(&bufs[id].mutex);
-			pthread_mutex_unlock(&avail.mutex);
+			// pthread_mutex_unlock(&avail.mutex);
 		}
+		fscanf(f, " \n"); // skip line
 	}
 
 	finished++;
@@ -98,19 +102,20 @@ void *consumer(void *args)
 
 	// read from each buffer
 	while (finished != N) {
-		pthread_mutex_lock(&avail.mutex);
+		// pthread_mutex_lock(&avail.mutex);
 
 		// wait for nonempty buffer
 		// maybe incorporate this under heap
-		while (heap_empty(&avail))
-			pthread_cond_wait(&avail.empty, &avail.mutex);
-		int id = (int) heap_pop(&avail);
+		// while (heap_empty(&avail))
+		// 	pthread_cond_wait(&avail.empty, &avail.mutex);
+		// int id = (int) heap_pop(&avail);
+		int id = 0;
 
 		// consume from bufs[id]
 		pthread_mutex_lock(&bufs[id].mutex);
 
 		// wait until buffer nonempty, just in case
-		while (EMPTY(bufs[id])
+		while (EMPTY(bufs[id]))
 			pthread_cond_wait(&bufs[id].empty, &bufs[id].mutex);
 
 		// remove element from buffer
@@ -120,12 +125,12 @@ void *consumer(void *args)
 		bufs[id].start++;
 		bufs[id].start %= bufsiz;
 
-		heap_push(&students, st->studentid, st);
+		heap_push(&students, st->sid, st);
 
-		pthread_cond_signal(&bufs[id].full, &bufs[id].mutex);
+		pthread_cond_signal(&bufs[id].full);
 		pthread_mutex_unlock(&bufs[id].mutex);
 
-		pthread_mutex_unlock(&avail.mutex);
+		// pthread_mutex_unlock(&avail.mutex);
 	}
 
 	// output students
@@ -137,11 +142,30 @@ void *consumer(void *args)
 
 	while (!heap_empty(&students)) {
 		st = heap_pop(&students);
-		fprintf(f, "%d %s %s %f\n", st->studentid, st->firstname, st->lastname, st->cgpa);
+		fprintf(f, "%d %s %s %lf\n", st->sid, st->firstname, st->lastname, st->cgpa);
 		free(st);
 	}
 
-	heap_free(&students);
+	heap_free(&students); // should also free each entry in students
 	fclose(f);
 	pthread_exit(NULL);
+}
+
+// perhaps move to separate file
+
+void buffer_init(struct buffer *b)
+{
+	b->buf = malloc(bufsiz * sizeof(struct student));
+	pthread_mutex_init(&b->mutex, NULL);
+	pthread_cond_init(&b->empty, NULL);
+	pthread_cond_init(&b->full, NULL);
+	b->start = b->end = b->size = 0;
+}
+
+void buffer_free(struct buffer *b)
+{
+	free(b->buf);
+	pthread_cond_destroy(&b->full);
+	pthread_cond_destroy(&b->empty);
+	pthread_mutex_destroy(&b->mutex);
 }
