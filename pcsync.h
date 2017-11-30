@@ -1,30 +1,13 @@
 #include <pthread.h>
+
 #include "heap.h"
-
-struct student {
-	int sid;
-	char firstname[64];
-	char lastname[64];
-	double cgpa;
-};
-
-// buffer shared between producer and consumer
-struct buffer {
-	struct student *buf;
-	pthread_cond_t full, empty; // represents whether buffer NOT full or empty
-	pthread_mutex_t mutex;
-	int start, end, size;
-	int finished; // whether producer has finished
-};
-
-#define EMPTY(buf) ((buf).size == 0)
-#define FULL(buf)  ((buf).size == bufsiz)
+#include "buffer.h" // contains maximum buffer size
 
 // initial size of heap
-#define MAXSTUDENTS 32
+#define MAXSTUDENTS 100
 
 // shared parameters
-int N, bufsiz;
+int N;
 char *input, *output;
 
 // array of buffers, mutexes
@@ -36,8 +19,3 @@ int finished = 0; // number of finished producers; monotone increasing, shouldn'
 void *producer(void *args); // takes producerid as argument
 void *consumer(void *args);
 
-// initialize buffer and mutexes
-void buffer_init(struct buffer *buf);
-
-// free buffer
-void buffer_free(struct buffer *buf);
