@@ -12,7 +12,7 @@ struct student {
 
 // buffer shared between producer and consumer
 struct buffer {
-	struct student *buf;
+	struct student **buf;
 	pthread_cond_t full, empty; // represents whether buffer NOT full or empty
 	pthread_mutex_t mutex;
 	int start, end, size;
@@ -32,8 +32,7 @@ void buffer_init(struct buffer *buf, int id);
 void buffer_push(struct buffer *buf, struct student *st);
 
 // copy student from buffer
-// return value: whether producer will continue or not
-int buffer_pop(struct buffer *buf, struct student *st);
+struct student *buffer_pop(struct buffer *buf);
 
 // free buffer
 void buffer_free(struct buffer *buf);
