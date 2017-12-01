@@ -26,6 +26,7 @@ void heap_decrkey(struct heap *, int key, void *val);
 
 void *heap_min(struct heap *);
 
+// waits if heap empty, instead of returning NULL
 void *heap_pop(struct heap *);
 
 void heap_free(struct heap *);

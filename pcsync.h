@@ -10,10 +10,11 @@
 int N;
 char *input, *output;
 
-// array of buffers, mutexes
+// array of buffers etc.
+// the mutexes of each buffer have to be locked before avail.mutex
 struct buffer *bufs;
 struct heap avail; // need to consume from available buffer with largest size, in order to keep buffers full the least
-int finished = 0; // number of finished producers; monotone increasing, shouldn't need to be synchronized // not used
+int remaining; // number of producers left to consume, initialized to N, controlled with avail.mutex
 
 // producer, consumer
 void *producer(void *args); // takes producerid as argument

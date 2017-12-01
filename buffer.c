@@ -3,7 +3,7 @@
 #include <stdio.h> // testing
 #include <stdlib.h>
 
-void buffer_init(struct buffer *b)
+void buffer_init(struct buffer *b, int id)
 {
 	b->buf = malloc(bufsiz * sizeof(struct student));
 	pthread_mutex_init(&b->mutex, NULL);
@@ -11,6 +11,7 @@ void buffer_init(struct buffer *b)
 	pthread_cond_init(&b->full, NULL);
 	b->start = b->end = b->size = 0;
 	b->finished = 0;
+	b->id = id;
 }
 
 void buffer_push(struct buffer *buf, struct student *st)
@@ -47,8 +48,10 @@ int buffer_pop(struct buffer *buf, struct student *st)
 		printf("buffer empty\n");
 		pthread_cond_wait(&buf->empty, &buf->mutex);
 	}
-	if (buf->finished)
+	if (EMPTY(*buf) && buf->finished) {
+		pthread_mutex_unlock(&buf->mutex);
 		return 0;
+	}
 
 	// remove element from buffer
 	*st = buf->buf[buf->start];
@@ -58,10 +61,12 @@ int buffer_pop(struct buffer *buf, struct student *st)
 
 	printf("consumer %d %s %s %lf\n", st->sid, st->firstname, st->lastname, st->cgpa);
 
+	int complete = EMPTY(*buf) && buf->finished;
+
 	pthread_cond_signal(&buf->full);
 	pthread_mutex_unlock(&buf->mutex);
 
-	return 1;
+	return !complete;
 }
 
 void buffer_free(struct buffer *b)

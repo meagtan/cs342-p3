@@ -55,6 +55,7 @@ void heap_decrkey(struct heap *h, int key, void *val)
 
 	// add val to heap if not in heap
 	if (i == h->size) {
+		//printf("%d not found\n", *((int *) val));
 		if (i == h->maxsize) {
 			h->maxsize <<= 1;
 			h->keys = realloc(h->keys, h->maxsize * sizeof(int));
@@ -62,7 +63,7 @@ void heap_decrkey(struct heap *h, int key, void *val)
 		}
 		h->keys[i] = key; // unnecessary
 		h->vals[i] = val;
-		pthread_cond_signal(&h->empty);
+		h->size++;
 	}
 
 	// sift up
@@ -73,6 +74,7 @@ void heap_decrkey(struct heap *h, int key, void *val)
 	h->keys[i] = key;
 	h->vals[i] = val;
 
+	pthread_cond_signal(&h->empty);
 	pthread_mutex_unlock(&h->mutex);
 }
 
@@ -86,10 +88,8 @@ void *heap_pop(struct heap *h)
 {
 	pthread_mutex_lock(&h->mutex);
 
-	if (heap_empty(h)) {
-		pthread_mutex_unlock(&h->mutex);
-		return NULL;
-	}
+	while (heap_empty(h))
+		pthread_cond_wait(&h->empty, &h->mutex);
 
 	void *val = h->vals[0];
 	h->size--;

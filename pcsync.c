@@ -18,18 +18,19 @@ int main(int argc, char *argv[])
 	bufsiz = atoi(argv[2]);
 	input  = argv[3];
 	output = argv[4];
+	remaining = N;
 
 	long int i;
 	pthread_t *thr = malloc((N+1) * sizeof(pthread_t)); // all threads, including consumer
 
 	// initialize shared mutexes, condition variables
-	// heap_init(avail, N);
+	heap_init(&avail, N);
 
 	// create N buffers, create producers
 	bufs = malloc(N * sizeof(struct buffer));
 	for (i = 0; i < N; ++i) {
-		buffer_init(bufs+i);
-		pthread_create(thr+i, NULL, producer, (void *) i);
+		buffer_init(bufs+i, i);
+		pthread_create(thr+i, NULL, producer, &bufs[i].id);
 	}
 
 	// create consumer
@@ -43,18 +44,21 @@ int main(int argc, char *argv[])
 	for (i = 0; i < N; ++i)
 		buffer_free(bufs+i);
 	free(bufs);
+
 	// release mutexes etc. if necessary
 
 	free(thr);
-	// heap_free(avail, N);
+	heap_free(&avail);
 	pthread_exit(NULL);
 }
 
 void *producer(void *args)
 {
-	long int id = (long int) args;
+	int id = *((int *) args);
 	struct student st;
 	int prodid; // producer id of each entry read
+
+	printf("producer %d entered\n", id);
 
 	// read input file
 	FILE *f = fopen(input, "r");
@@ -68,38 +72,40 @@ void *producer(void *args)
 			// pthread_mutex_lock(&avail.mutex);
 			buffer_push(bufs+id, &st);
 //			printf("producer %d %d %s %s %lf\n", prodid, st.sid, st.firstname, st.lastname, st.cgpa);
-/*
-			pthread_mutex_lock(&bufs[id].mutex);
-
-			// wait until buffer not full
-			while (FULL(bufs[id])) {
-				printf("buffer full\n");
-				pthread_cond_wait(&bufs[id].full, &bufs[id].mutex);
-			}
-
-			// add st to buffer
-			bufs[id].buf[bufs[id].end] = st; // struct assignment copies each member of struct
-			bufs[id].size++;
-			bufs[id].end++;
-			bufs[id].end %= bufsiz;
 
 			// signal that buffer not empty
-			// heap_decrkey(&avail, -bufs[id].size, (void *) id);
-			pthread_cond_signal(&bufs[id].empty);
+			pthread_mutex_lock(&bufs[id].mutex);
+			if (!EMPTY(bufs[id])) {
+				heap_decrkey(&avail, -bufs[id].size, &bufs[id].id);
+				// pthread_cond_signal(&avail.empty);
+				// printf("added bufs[%ld] to avail with size %d, avail.size = %d\n", id, bufs[id].size, avail.size);
+			}
 			pthread_mutex_unlock(&bufs[id].mutex);
-*/
+
 			// pthread_mutex_unlock(&avail.mutex);
 		}
 		fscanf(f, " \n"); // skip line
+/*		pthread_mutex_lock(&avail.mutex);
+		//printf("waiting for nonempty id\n");
+		for (int i = 0; i < avail.size; ++i)
+			printf("(%d,%d) ", *((int *) avail.vals[i]), avail.keys[i]);
+		printf("avail.size = %d\n", avail.size);
+		pthread_mutex_unlock(&avail.mutex);
+*/
 	}
 
 	pthread_mutex_lock(&bufs[id].mutex);
 	bufs[id].finished = 1;
-	finished++;
+	if (bufs[id].size == 0) {
+		pthread_mutex_lock(&avail.mutex);
+		remaining--;
+		pthread_mutex_unlock(&avail.mutex);
+	}
 	pthread_cond_signal(&bufs[id].empty);
 	pthread_mutex_unlock(&bufs[id].mutex);
 
-	printf("producer finished\n");
+
+	printf("producer %d finished\n", id);
 
 	fclose(f);
 	pthread_exit(NULL);
@@ -109,51 +115,50 @@ void *consumer(void *args)
 {
 	struct heap students;
 	struct student *st;
-	int consumed = 0; // number of producers finished and completely consumed
+	// int remaining = N; // number of producers that haven't finished and been completely consumed
 
 	heap_init(&students, MAXSTUDENTS);
 
 	// read from each buffer
-	while (consumed != N) {
+	pthread_mutex_lock(&avail.mutex);
+	while (remaining) {
+		pthread_mutex_unlock(&avail.mutex);
 		// wait for nonempty buffer
 		// maybe incorporate this under heap
-		// while (heap_empty(&avail))
-		// 	pthread_cond_wait(&avail.empty, &avail.mutex);
-		// int id = (int) heap_pop(&avail);
-		int id = 0;
-
-/*		// consume from bufs[id]
-		pthread_mutex_lock(&bufs[id].mutex);
-
-		// wait until buffer nonempty
-		while (!bufs[id].finished && EMPTY(bufs[id])) {
-			printf("buffer empty\n");
-			pthread_cond_wait(&bufs[id].empty, &bufs[id].mutex);
-		}
-		if (bufs[id].finished && EMPTY(bufs[id])) {
-			consumed++;
-			continue;
-		}
+/*		pthread_mutex_lock(&avail.mutex);
+		for (int i = 0; i < avail.size; ++i)
+			printf("(%d,%d) ", *((int *) avail.vals[i]), avail.keys[i]);
+		printf("avail.size = %d\n", avail.size);
+		pthread_mutex_unlock(&avail.mutex);
 */
+		int id = *((int *) heap_pop(&avail));
+		printf("received id %d\n", id);
+		// int id = 0;
+
 		st = malloc(sizeof(struct student));
 
 		// remove element from buffer; continue without processing if no element left (producer terminated)
 		if (!buffer_pop(bufs+id, st)) {
-			free(st);
-			consumed++;
-			continue;
+			//free(st);
+			remaining--;
+			// continue;
 		}
 
-		// printf("consumer %d %d %s %s %lf\n", id, st->sid, st->firstname, st->lastname, st->cgpa);
+		printf("popped element\n");
+		pthread_mutex_lock(&bufs[id].mutex);
+		if (!EMPTY(bufs[id])) {
+			// not push as producer might have pushed itself to avail beforehand
+			heap_decrkey(&avail, -bufs[id].size, (int *) &bufs[id].id);
+			printf("added bufs[%d] to avail with size %d\n", id, bufs[id].size);
+		}
+		pthread_mutex_unlock(&bufs[id].mutex);
+		//printf("consumer %d %d %s %s %lf\n", id, st->sid, st->firstname, st->lastname, st->cgpa);
 
 		heap_push(&students, st->sid, st);
 
-
-/*		pthread_cond_signal(&bufs[id].full);
-		pthread_mutex_unlock(&bufs[id].mutex);
-*/
-		// pthread_mutex_unlock(&avail.mutex);
+		pthread_mutex_lock(&avail.mutex);
 	}
+	pthread_mutex_unlock(&avail.mutex);
 
 	printf("producers finished\n");
 
@@ -166,7 +171,7 @@ void *consumer(void *args)
 
 	while (!heap_empty(&students)) {
 		st = heap_pop(&students);
-		fprintf(f, "%d %s %s %lf\n", st->sid, st->firstname, st->lastname, st->cgpa);
+		fprintf(f, "%d %s %s %.2lf\n", st->sid, st->firstname, st->lastname, st->cgpa);
 		free(st);
 	}
 

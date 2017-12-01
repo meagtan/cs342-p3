@@ -17,6 +17,7 @@ struct buffer {
 	pthread_mutex_t mutex;
 	int start, end, size;
 	int finished; // whether producer has finished adding students
+	int id; // hack, stores # of producer associated with buffer
 };
 
 #define EMPTY(buf) ((buf).size == 0)
@@ -25,7 +26,7 @@ struct buffer {
 int bufsiz;
 
 // initialize buffer and mutexes
-void buffer_init(struct buffer *buf);
+void buffer_init(struct buffer *buf, int id);
 
 // copy student into buffer
 void buffer_push(struct buffer *buf, struct student *st);
