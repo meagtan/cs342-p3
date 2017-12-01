@@ -117,6 +117,6 @@ void heap_free(struct heap *h)
 	free(h->keys);
 	free(h->vals);
 
-	pthread_mutex_destroy(&h->mutex);
 	pthread_cond_destroy(&h->empty);
+	pthread_mutex_destroy(&h->mutex);
 }

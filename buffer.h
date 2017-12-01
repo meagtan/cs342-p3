@@ -16,7 +16,7 @@ struct buffer {
 	pthread_cond_t full, empty; // represents whether buffer NOT full or empty
 	pthread_mutex_t mutex;
 	int start, end, size;
-	int finished; // whether producer has finished adding students
+	// int finished; // whether producer has finished adding students
 	int id; // hack, stores # of producer associated with buffer
 };
 

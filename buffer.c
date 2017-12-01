@@ -6,12 +6,12 @@
 void buffer_init(struct buffer *b, int id)
 {
 	b->buf = malloc(bufsiz * sizeof(struct student *));
+	b->start = b->end = b->size = 0;
+	b->id = id;
+
 	pthread_mutex_init(&b->mutex, NULL);
 	pthread_cond_init(&b->empty, NULL);
 	pthread_cond_init(&b->full, NULL);
-	b->start = b->end = b->size = 0;
-	b->finished = 0;
-	b->id = id;
 }
 
 void buffer_push(struct buffer *buf, struct student *st)
@@ -20,7 +20,7 @@ void buffer_push(struct buffer *buf, struct student *st)
 
 	// wait until buffer not full
 	while (FULL(*buf)) {
-		printf("buffer full\n");
+		// printf("buffer full\n");
 		pthread_cond_wait(&buf->full, &buf->mutex);
 	}
 
@@ -34,7 +34,6 @@ void buffer_push(struct buffer *buf, struct student *st)
 		printf("producer %d %s %s %lf\n", st->sid, st->firstname, st->lastname, st->cgpa);
 
 	// signal that buffer not empty
-	// heap_decrkey(&avail, -bufs[id].size, (void *) id);
 	pthread_cond_signal(&buf->empty);
 	pthread_mutex_unlock(&buf->mutex);
 }
@@ -48,14 +47,9 @@ struct student *buffer_pop(struct buffer *buf)
 	// printf("acquired lock\n");
 	// wait until buffer nonempty; should not wait if producer already concluded
 	while (EMPTY(*buf)) {
-		printf("buffer empty\n");
+		// printf("buffer empty\n");
 		pthread_cond_wait(&buf->empty, &buf->mutex);
-	} /*
-	if (EMPTY(*buf) && buf->finished) {
-		pthread_mutex_unlock(&buf->mutex);
-		return 0;
 	}
-	*/
 
 	// remove element from buffer
 	st = buf->buf[buf->start];
