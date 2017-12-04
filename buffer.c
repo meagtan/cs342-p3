@@ -1,3 +1,11 @@
+/**
+ * CS 342 Project 3
+ * Ata Deniz Aydin
+ * 21502637
+ *
+ * Implementation of buffer.h
+ */
+
 #include "buffer.h"
 
 #include <stdio.h> // testing
@@ -30,8 +38,8 @@ void buffer_push(struct buffer *buf, struct student *st)
 	buf->end++;
 	buf->end %= bufsiz;
 
-	if (st)
-		printf("producer %d %s %s %lf\n", st->sid, st->firstname, st->lastname, st->cgpa);
+	// if (st)
+	// 	printf("producer %d %s %s %lf\n", st->sid, st->firstname, st->lastname, st->cgpa);
 
 	// signal that buffer not empty
 	pthread_cond_signal(&buf->empty);
@@ -57,8 +65,8 @@ struct student *buffer_pop(struct buffer *buf)
 	buf->start++;
 	buf->start %= bufsiz;
 
-	if (st)
-		printf("consumer %d %s %s %lf\n", st->sid, st->firstname, st->lastname, st->cgpa);
+	// if (st)
+	// 	printf("consumer %d %s %s %lf\n", st->sid, st->firstname, st->lastname, st->cgpa);
 
 	// int complete = EMPTY(*buf) && buf->finished;
 

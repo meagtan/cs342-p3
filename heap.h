@@ -1,5 +1,11 @@
-// Thread-safe minheap with integer keys and void * values
-// Used to sort buffers by size and students by ID
+/**
+ * CS 342 Project 3
+ * Ata Deniz Aydin
+ * 21502637
+ *
+ * Thread-safe minheap with integer keys and void * values
+ * Used to sort buffers by size and students by ID
+ */
 
 #include <pthread.h>
 
@@ -23,6 +29,9 @@ void heap_push(struct heap *, int key, void *val);
 
 // searches for val in heap, if found decreases its key to key, else pushes it to heap
 void heap_decrkey(struct heap *, int key, void *val);
+
+// decrease priority of val to key, similar to decrkey
+void heap_incrkey(struct heap *, int key, void *val);
 
 void *heap_min(struct heap *);
 

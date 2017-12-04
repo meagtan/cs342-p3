@@ -1,3 +1,11 @@
+/**
+ * CS 342 Project 3
+ * Ata Deniz Aydin
+ * 21502637
+ *
+ * Main program and producer, consumer threads
+ */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>
@@ -18,12 +26,11 @@ int main(int argc, char *argv[])
 	bufsiz = atoi(argv[2]);
 	input  = argv[3];
 	output = argv[4];
-	// remaining = N;
 
 	long int i;
 	pthread_t *thr = malloc((N+1) * sizeof(pthread_t)); // all threads, including consumer
 
-	// initialize shared mutexes, condition variables
+	// initialize heap of available buffers
 	heap_init(&avail, N);
 
 	// create N buffers, create producers
@@ -36,7 +43,7 @@ int main(int argc, char *argv[])
 	// create consumer
 	pthread_create(thr+i, NULL, consumer, NULL);
 
-	// wait for all threads to finish // TODO is this correct?
+	// wait for all threads to finish
 	for (i = 0; i <= N; ++i)
 		pthread_join(thr[i], NULL);
 
@@ -55,7 +62,7 @@ int main(int argc, char *argv[])
 void *producer(void *args)
 {
 	int id = *((int *) args);
-	struct student *st;
+	struct student *st; // student read from file, allocated dynamically
 	int prodid; // producer id of each entry read
 
 	// printf("producer %d entered\n", id);
@@ -94,7 +101,7 @@ void *producer(void *args)
 		heap_decrkey(&avail, -bufs[id].size, &bufs[id].id);
 	pthread_mutex_unlock(&bufs[id].mutex);
 
-	printf("producer %d finished\n", id);
+	// printf("producer %d finished\n", id);
 
 	fclose(f);
 	pthread_exit(NULL);
@@ -122,8 +129,8 @@ void *consumer(void *args)
 
 		pthread_mutex_lock(&bufs[id].mutex);
 		if (!EMPTY(bufs[id])) {
-			// decrkey not push as producer might have pushed itself to avail beforehand
-			heap_decrkey(&avail, -bufs[id].size, (int *) &bufs[id].id);
+			// incrkey not push as producer might have pushed itself to avail beforehand
+			heap_incrkey(&avail, -bufs[id].size, (int *) &bufs[id].id);
 			// printf("added bufs[%d] to avail with size %d\n", id, bufs[id].size);
 		}
 		pthread_mutex_unlock(&bufs[id].mutex);
@@ -131,7 +138,7 @@ void *consumer(void *args)
 		heap_push(&students, st->sid, st);
 	}
 
-	printf("producers finished\n");
+	// printf("producers finished\n");
 
 	// output students
 	FILE *f = fopen(output, "w");
